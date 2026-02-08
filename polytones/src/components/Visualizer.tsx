@@ -1,12 +1,14 @@
-import { db } from "../scripts/db";
+import type { Midi } from "@tonejs/midi";
 import { useRef } from "react";
-import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect } from "react";
 import VexFlow from "vexflow";
 
-function Visualizer({ refreshKey }: { refreshKey: number }) {
-  const midi = useLiveQuery(() => db.MidiStorage.get(1));
+type Visualizer = { refreshKey: number; midi: Midi | undefined };
+
+function Visualizer({ refreshKey, midi }: Visualizer) {
   const output = useRef<HTMLDivElement | null>(null);
+
+  console.log(midi);
 
   useEffect(() => {
     if (!output.current || !midi) return;
@@ -29,11 +31,12 @@ function Visualizer({ refreshKey }: { refreshKey: number }) {
     const score = vf.EasyScore();
     const system = vf.System({ width: parentWidth - 20, x: 10 });
 
-    const firstTs = midi.midi.header.timeSignatures[0]?.timeSignature || [4, 4];
+    const firstTs = midi.header.timeSignatures[0]?.timeSignature || [4, 4];
     const signature = `${firstTs[0]}/${firstTs[1]}`;
-    const key = midi.midi.header.keySignatures[0]?.key || "C";
+    const key = midi.header.keySignatures[0]?.key || "C";
 
-    midi.midi.tracks.forEach((track, index) => {
+    midi.tracks.forEach((track, index) => {
+      console.log(track);
       system
         .addStave({
           voices: [
@@ -47,12 +50,6 @@ function Visualizer({ refreshKey }: { refreshKey: number }) {
     });
 
     vf.draw();
-
-    return () => {
-      if (output.current) {
-        output.current.innerHTML = "";
-      }
-    };
   }, [midi, refreshKey]);
 
   if (!midi) return <p>Loading MIDI data...</p>;
