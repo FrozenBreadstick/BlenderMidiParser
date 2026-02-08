@@ -1,9 +1,9 @@
+import type { Midi } from "@tonejs/midi";
 import Dexie, { type Table } from "dexie";
 
 export interface MidiFileRecord {
   id: number;
-  fileData: ArrayBuffer | object;
-  fileName: string;
+  midi: Midi;
 }
 
 export class MyDatabase extends Dexie {

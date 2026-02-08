@@ -1,11 +1,4 @@
-import { type Midi } from "@tonejs/midi";
-
-type File = {
-  midi: Midi;
-};
-
-function Visualizer({ midi }: File) {
-  console.log(midi);
+function Visualizer() {
   return <div className="c-visualizer"></div>;
 }
 
