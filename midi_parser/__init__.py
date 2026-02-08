@@ -12,6 +12,8 @@ bl_info = {
 }
 
 import bpy
+from bpy_extras.io_utils import ImportHelper
+from bpy.props import StringProperty
 from bpy.types import Operator
 from bpy.types import Panel
 
@@ -19,7 +21,7 @@ from midi_parser.external import webbrowser
 
 class BMP_OT_operator(Operator):
     """ tooltip goes here """
-    bl_idname = "webpage.operator"
+    bl_idname = "bmp.operator"
     bl_label = "Opens a webpage"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -36,6 +38,32 @@ class BMP_OT_operator(Operator):
 
         return {'FINISHED'}
 
+class BMP_OT_import_file(Operator, ImportHelper):
+    bl_idname = "bmp.file_select"
+    bl_label = "Select Midi"
+
+    filename_ext = ".midi"
+
+    filter_glob: StringProperty(
+        default="*.midi",
+        options={'HIDDEN'}
+    )
+
+    filepath: StringProperty(
+        name="File Path",
+        description="Path to the file",
+        maxlen=1024,
+        subtype='FILE_PATH',
+    )
+
+    def execute(self, context):
+        print("Selected file:", self.filepath)
+
+        with open(self.filepath, "r") as f:
+            data = f.read()
+
+        print("File contents:", data[:100])
+        return {'FINISHED'}
 
 class BMP_PT_sidebar(Panel):
     """Display test button"""
@@ -46,12 +74,14 @@ class BMP_PT_sidebar(Panel):
 
     def draw(self, context):
         col = self.layout.column(align=True)
-        prop = col.operator(BMP_OT_operator.bl_idname, text="Say Something")
+        prop = col.operator(BMP_OT_operator.bl_idname, text="Open Wikipedia")
+        filepicker = col.operator(BMP_OT_import_file.bl_idname, text='Import Midi')
     
     
 classes = [
     BMP_OT_operator,
     BMP_PT_sidebar,
+    BMP_OT_import_file
 ]
     
 
