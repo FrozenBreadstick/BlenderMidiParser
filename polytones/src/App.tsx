@@ -1,47 +1,46 @@
-import "bootstrap/dist/css/bootstrap.min.css";
 import "./styles/main.scss";
-
+import { useEffect } from "react";
 import { db } from "./scripts/db";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Container, Row, Col } from "react-bootstrap";
-import { FileUploader, FileWrapper, File } from "./components/file";
-import { useState } from "react";
+import Visualizer from "./components/Visualizer";
+import { Midi } from "@tonejs/midi";
 
 function App() {
-  const [active, setActive] = useState<number | undefined>(undefined);
-  const midiFiles = useLiveQuery(() => db.MidiStorage.toArray(), []);
-  function isSelected(id: number | undefined) {
-    if (id) {
-      setActive(id);
-    }
-  }
+  const record = useLiveQuery(() => db.MidiStorage.get(1));
+
+  useEffect(() => {
+    const loadMidiFromServer = async () => {
+      try {
+        const response = await fetch("http://localhost:3000/");
+        if (!response.ok) throw new Error("Network response was not ok");
+
+        const data = await response.json();
+
+        await db.MidiStorage.put({
+          id: 1,
+          fileData: data.midi,
+          fileName: data.filename || "unknown.mid",
+        });
+      } catch (error) {
+        console.error("Fetch error:", error);
+      }
+    };
+
+    loadMidiFromServer();
+  }, []);
+
+  const midiObject = record ? new Midi(record.fileData as Uint8Array) : null;
 
   return (
-    <Container className="mt-5">
-      <Row>
-        <Col md={4}>
-          <FileWrapper>
-            <div className="u-flex u-scroll">
-              {midiFiles?.map((file, index) => {
-                const isActive = active === file.id;
-                return (
-                  <File
-                    key={index}
-                    file={file}
-                    isActive={isActive}
-                    onSelect={() => isSelected(file.id)}
-                  />
-                );
-              })}
-            </div>
-            <FileUploader />
-          </FileWrapper>
-        </Col>
-        <Col md={8}>
-          <section className="c-visualizer"></section>
-        </Col>
-      </Row>
-    </Container>
+    <section>
+      <div className="c-input"></div>
+
+      {midiObject ? (
+        <Visualizer midi={midiObject} />
+      ) : (
+        <p>No MIDI loaded yet...</p>
+      )}
+    </section>
   );
 }
 

@@ -1,8 +1,9 @@
 import Dexie, { type Table } from "dexie";
 
 export interface MidiFileRecord {
-  id?: number;
-  file: File;
+  id: number;
+  fileData: ArrayBuffer | object;
+  fileName: string;
 }
 
 export class MyDatabase extends Dexie {
@@ -11,7 +12,7 @@ export class MyDatabase extends Dexie {
   constructor() {
     super("MidiLibrary");
     this.version(1).stores({
-      MidiStorage: "++id",
+      MidiStorage: "id",
     });
   }
 }

@@ -8,3 +8,11 @@ button,
 input {
     cursor: pointer;
 }
+
+section {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: 2fr 5fr;
+    height: 100vh;
+    gap: 20px;
+}
