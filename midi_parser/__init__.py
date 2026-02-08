@@ -32,7 +32,7 @@ class BMP_OT_operator(Operator):
         self.report({'INFO'},
             f"execute()")
         
-        webbrowser.open('https://www.wikipedia.org/')
+        webbrowser.open_new('https://www.wikipedia.org/')
 
         return {'FINISHED'}
 
