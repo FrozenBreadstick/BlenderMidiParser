@@ -73,6 +73,14 @@ app.post("/upload", upload.single("midi"), (req, res) => {
     return res.status(400).json({ error: "No file uploaded." });
   }
 
+  const files = fs.readdirSync("./uploads");
+
+  files.forEach((file) => {
+    if (file !== req.file.filename) {
+      fs.unlinkSync(`./uploads/${file}`);
+    }
+  });
+
   const midiData = new Midi(fs.readFileSync(req.file.path));
 
   res.json({
