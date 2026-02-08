@@ -1,7 +1,28 @@
 const fs = require("fs");
 const { Midi } = require("@tonejs/midi");
 const express = require("express");
+const cors = require("cors");
 const app = express();
+
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://127.0.0.1:5174",
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+};
+
+app.use(cors(corsOptions));
 
 const filterType = function (req, file, cb) {
   const allowedTypes = ["audio/midi", "audio/mid", "audio/x-midi"];
