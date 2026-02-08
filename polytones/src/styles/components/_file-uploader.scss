@@ -1,0 +1,7 @@
+@use "../settings/mixins" as mixins;
+
+.c-form {
+    &__input {
+        @include mixins.flexbox(column, center, center, 0);
+    }
+}
