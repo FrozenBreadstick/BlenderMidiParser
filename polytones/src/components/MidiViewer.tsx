@@ -17,35 +17,46 @@ function MidiViewer({ midiFiles }: MidiViewerProps) {
           "midi",
           midiBuffer.slice(0),
           [],
-          true,
+          false,
         );
-        const pageCount = await score.npages(); // total pages
-        console.log("Total pages:", pageCount);
 
-        const pages: string[] = [];
+        // Check how many pages the engine thinks it has created
+        const pagesCount = await score.npages();
+        let finalSvgAssembly = "";
 
-        for (let i = 0; i < pageCount; i++) {
-          const svg = await score.saveSvg(i); // page index: 0-based
-          pages.push(svg);
+        for (let i = 0; i < pagesCount; i++) {
+          const pageSvg = await score.saveSvg(i);
+
+          if (typeof pageSvg === "string") {
+            if (i === 0) {
+              // Keep the first page as is (includes the main headers/keys)
+              finalSvgAssembly += pageSvg;
+            } else {
+              // For subsequent pages, we "strip" the header info or wrap them
+              // so they overlap the previous page's bottom margin
+              finalSvgAssembly += `<div class="subsequent-page">${pageSvg}</div>`;
+            }
+          }
         }
 
-        // Combine or render all pages
-        setSvgContent(pages.join('<div class="page-separator"></div>'));
+        setSvgContent(finalSvgAssembly);
         score.destroy();
       } catch (err) {
-        console.error("WebMscore Error:", err);
+        console.error(err);
       }
     });
   }, [midiFiles]);
+
   return (
-    <section>
+    <>
       {svgContent && (
         <div
           className="score-preview"
           dangerouslySetInnerHTML={{ __html: svgContent }}
         />
       )}
-    </section>
+    </>
   );
 }
+
 export default MidiViewer;
