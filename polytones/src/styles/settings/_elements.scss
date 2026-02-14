@@ -15,15 +15,3 @@ input {
     width: 10000000px;
     height: fit-content;
 }
-
-.subsequent-page {
-    margin-left: -703px;
-}
-.subsequent-page .InstrumentName,
-.subsequent-page .Clef,
-.subsequent-page .KeySig,
-.subsequent-page .TimeSig,
-.subsequent-page .Page,
-.subsequent-page .Bracket {
-    display: none;
-}

@@ -8,7 +8,6 @@ function MidiViewer({ midiFiles }: MidiViewerProps) {
   useEffect(() => {
     const buffers = Object.values(midiFiles);
     const midiBuffer = buffers.length > 0 ? buffers[0] : null;
-
     if (!midiBuffer) return;
 
     WebMscore.ready.then(async () => {
@@ -19,43 +18,81 @@ function MidiViewer({ midiFiles }: MidiViewerProps) {
           [],
           false,
         );
+        const pageCount = await score.npages();
 
-        // Check how many pages the engine thinks it has created
-        const pagesCount = await score.npages();
-        let finalSvgAssembly = "";
+        const pages: string[] = [];
+        let currentY = 0; // cumulative vertical offset
+        let maxWidth = 0;
 
-        for (let i = 0; i < pagesCount; i++) {
-          const pageSvg = await score.saveSvg(i);
+        for (let i = 0; i < pageCount; i++) {
+          let svgString = await score.saveSvg(i);
+          if (typeof svgString !== "string") continue;
 
-          if (typeof pageSvg === "string") {
-            if (i === 0) {
-              // Keep the first page as is (includes the main headers/keys)
-              finalSvgAssembly += pageSvg;
-            } else {
-              // For subsequent pages, we "strip" the header info or wrap them
-              // so they overlap the previous page's bottom margin
-              finalSvgAssembly += `<div class="subsequent-page">${pageSvg}</div>`;
-            }
+          svgString = svgString
+            .replace(/<\?xml.*\?>/g, "")
+            .replace(/<!DOCTYPE.*>/g, "");
+
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(svgString, "image/svg+xml");
+          const svg = doc.querySelector("svg");
+          if (!svg) continue;
+
+          // Remove instrument labels after first page
+          if (i > 0) {
+            svg.querySelectorAll("text").forEach((t) => {
+              const content = t.textContent?.trim();
+              if (content && /(El\.|Pno|Guit|Br|Sax)/.test(content)) t.remove();
+            });
           }
+
+          // Measure page width & height
+          const viewBox = svg.getAttribute("viewBox");
+          let width = 1000;
+          let height = 700;
+          if (viewBox) {
+            const [, , w, h] = viewBox.split(" ").map(Number);
+            width = w;
+            height = h;
+          }
+          maxWidth = Math.max(maxWidth, width);
+
+          // Wrap page content in <g> with proper vertical offset
+          pages.push(
+            `<g transform="translate(0, ${currentY})">${svg.innerHTML}</g>`,
+          );
+
+          // Update cumulative vertical offset for next page
+          currentY += height;
         }
 
-        setSvgContent(finalSvgAssembly);
+        // Combine all pages into one SVG
+        const combinedSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${maxWidth}" height="${currentY}">
+          ${pages.join("")}
+        </svg>`;
+
+        setSvgContent(combinedSvg);
+
+        // Save combined SVG for caching
+        await fetch("/api/save-svg", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileName: "latest_score.svg",
+            content: combinedSvg,
+          }),
+        });
+
         score.destroy();
       } catch (err) {
-        console.error(err);
+        console.error("WebMscore Error:", err);
       }
     });
   }, [midiFiles]);
 
   return (
-    <>
-      {svgContent && (
-        <div
-          className="score-preview"
-          dangerouslySetInnerHTML={{ __html: svgContent }}
-        />
-      )}
-    </>
+    <div>
+      {svgContent && <div dangerouslySetInnerHTML={{ __html: svgContent }} />}
+    </div>
   );
 }
 
