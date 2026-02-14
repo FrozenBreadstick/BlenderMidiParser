@@ -13,9 +13,24 @@ function MidiViewer({ midiFiles }: MidiViewerProps) {
 
     WebMscore.ready.then(async () => {
       try {
-        const score = await WebMscore.load("midi", midiBuffer.slice(0));
-        const svgBytes = await score.saveSvg(3);
-        setSvgContent(svgBytes);
+        const score = await WebMscore.load(
+          "midi",
+          midiBuffer.slice(0),
+          [],
+          true,
+        );
+        const pageCount = await score.npages(); // total pages
+        console.log("Total pages:", pageCount);
+
+        const pages: string[] = [];
+
+        for (let i = 0; i < pageCount; i++) {
+          const svg = await score.saveSvg(i); // page index: 0-based
+          pages.push(svg);
+        }
+
+        // Combine or render all pages
+        setSvgContent(pages.join('<div class="page-separator"></div>'));
         score.destroy();
       } catch (err) {
         console.error("WebMscore Error:", err);
