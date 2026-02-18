@@ -1,98 +1,98 @@
+import { useEffect, useRef } from "react";
+import { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
 import WebMscore from "webmscore";
-import { useEffect, useState } from "react";
 import type { MidiViewerProps } from "../interfaces/interfaces";
 
 function MidiViewer({ midiFiles }: MidiViewerProps) {
-  const [svgContent, setSvgContent] = useState<string>("");
+  const containerRef = useRef<HTMLDivElement>(null);
+  const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
+  const isProcessing = useRef(false);
 
   useEffect(() => {
-    const buffers = Object.values(midiFiles);
-    const midiBuffer = buffers.length > 0 ? buffers[0] : null;
-    if (!midiBuffer) return;
+    const convertAndRender = async () => {
+      if (isProcessing.current) return;
 
-    WebMscore.ready.then(async () => {
+      const midiData = Object.values(midiFiles)[0];
+      if (!midiData || !containerRef.current) return;
+
+      isProcessing.current = true;
+
       try {
-        const score = await WebMscore.load(
-          "midi",
-          midiBuffer.slice(0),
-          [],
-          false,
-        );
-        const pageCount = await score.npages();
-
-        const pages: string[] = [];
-        let currentY = 0; // cumulative vertical offset
-        let maxWidth = 0;
-
-        for (let i = 0; i < pageCount; i++) {
-          let svgString = await score.saveSvg(i);
-          if (typeof svgString !== "string") continue;
-
-          svgString = svgString
-            .replace(/<\?xml.*\?>/g, "")
-            .replace(/<!DOCTYPE.*>/g, "");
-
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(svgString, "image/svg+xml");
-          const svg = doc.querySelector("svg");
-          if (!svg) continue;
-
-          // Remove instrument labels after first page
-          if (i > 0) {
-            svg.querySelectorAll("text").forEach((t) => {
-              const content = t.textContent?.trim();
-              if (content && /(El\.|Pno|Guit|Br|Sax)/.test(content)) t.remove();
-            });
-          }
-
-          // Measure page width & height
-          const viewBox = svg.getAttribute("viewBox");
-          let width = 1000;
-          let height = 700;
-          if (viewBox) {
-            const [, , w, h] = viewBox.split(" ").map(Number);
-            width = w;
-            height = h;
-          }
-          maxWidth = Math.max(maxWidth, width);
-
-          // Wrap page content in <g> with proper vertical offset
-          pages.push(
-            `<g transform="translate(0, ${currentY})">${svg.innerHTML}</g>`,
-          );
-
-          // Update cumulative vertical offset for next page
-          currentY += height;
+        if (!osmdRef.current) {
+          osmdRef.current = new OpenSheetMusicDisplay(containerRef.current, {
+            autoResize: false,
+            backend: "svg",
+            drawPartNames: false,
+            renderSingleHorizontalStaffline: true,
+          });
         }
+        const osmd = osmdRef.current;
 
-        // Combine all pages into one SVG
-        const combinedSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${maxWidth}" height="${currentY}">
-          ${pages.join("")}
-        </svg>`;
+        await WebMscore.ready;
 
-        setSvgContent(combinedSvg);
+        const score = await WebMscore.load("midi", new Uint8Array(midiData));
+        const musicXml = await score.saveXml();
 
-        // Save combined SVG for caching
-        await fetch("/api/save-svg", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            fileName: "latest_score.svg",
-            content: combinedSvg,
-          }),
+        await osmd.load(musicXml);
+
+        osmd.setCustomPageFormat(1000000, 1000000);
+
+        osmd.setOptions({
+          renderSingleHorizontalStaffline: true,
+          drawTitle: false,
+          drawingParameters: "compact",
         });
+
+        osmd.render();
+
+        if (containerRef.current) {
+          // 1. Find the actual SVG element inside the OSMD container
+          const svgElement = containerRef.current.querySelector("svg");
+
+          if (!svgElement) {
+            throw new Error("SVG element not found in OSMD container.");
+          }
+
+          // 2. Serialize only the SVG and its children
+          const svgContent = new XMLSerializer().serializeToString(svgElement);
+
+          // 3. Add the XML declaration so Blender recognizes it
+          const xmlHeader =
+            '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n';
+          const finalContent = xmlHeader + svgContent;
+
+          // 4. Send the clean SVG string
+          await fetch("/api/save-svg", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              fileName: "converted_midi.svg",
+              content: finalContent,
+            }),
+          });
+        }
 
         score.destroy();
       } catch (err) {
-        console.error("WebMscore Error:", err);
+        console.error("Worker or OSMD Error:", err);
+      } finally {
+        isProcessing.current = false;
       }
-    });
+    };
+
+    convertAndRender();
   }, [midiFiles]);
 
   return (
-    <div>
-      {svgContent && <div dangerouslySetInnerHTML={{ __html: svgContent }} />}
-    </div>
+    <div
+      ref={containerRef}
+      style={{
+        width: "100%",
+        height: "100%",
+        overflowY: "auto",
+        backgroundColor: "#fff",
+      }}
+    />
   );
 }
 

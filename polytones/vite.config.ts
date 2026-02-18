@@ -12,6 +12,11 @@ export default defineConfig({
       plugins: [autoprefixer],
     },
   },
+
+  build: {
+    outDir: "../midi_parser",
+    emptyOutDir: true,
+  },
   plugins: [
     react(),
     arraybuffer(),
