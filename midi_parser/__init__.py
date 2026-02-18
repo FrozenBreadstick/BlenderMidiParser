@@ -11,6 +11,8 @@ bl_info = {
     "category" : "Animation"
 }
 
+import shutil
+from pathlib import Path
 import bpy
 from bpy_extras.io_utils import ImportHelper
 from bpy.props import StringProperty
@@ -59,10 +61,22 @@ class BMP_OT_import_file(Operator, ImportHelper):
     def execute(self, context):
         print("Selected file:", self.filepath)
 
-        with open(self.filepath, "r") as f:
-            data = f.read()
+        src = Path(self.filepath)
+        
+        documents_dir = Path.home() / "Documents" #Temporarily using the documents folder
+        cache_dir = documents_dir / "BMP_cache"
 
-        print("File contents:", data[:100])
+        if cache_dir.exists():
+            shutil.rmtree(cache_dir)
+
+        cache_dir.mkdir(parents=True, exist_ok=True)
+
+        dst = cache_dir / src.name #Get the destination folder
+
+        shutil.copy2(src, dst) #Copy the midi file
+
+        print("Copied to:", dst)
+
         return {'FINISHED'}
 
 class BMP_PT_sidebar(Panel):
