@@ -14,7 +14,7 @@ export default defineConfig({
   },
 
   build: {
-    outDir: "../midi_parser",
+    outDir: "../midi_parser/blender_dist",
     emptyOutDir: true,
   },
   plugins: [
