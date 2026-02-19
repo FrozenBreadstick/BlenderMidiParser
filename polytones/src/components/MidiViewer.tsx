@@ -46,7 +46,6 @@ function MidiViewer({ midiFiles }: MidiViewerProps) {
         osmd.render();
 
         if (containerRef.current) {
-          // 1. Find the actual SVG element inside the OSMD container
           const svgElement = containerRef.current.querySelector("svg");
 
           if (!svgElement) {
