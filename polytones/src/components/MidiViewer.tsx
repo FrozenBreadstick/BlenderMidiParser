@@ -35,7 +35,7 @@ function MidiViewer({ midiFiles }: MidiViewerProps) {
 
         await osmd.load(musicXml);
 
-        osmd.setCustomPageFormat(1000000, 1000000);
+        osmd.setCustomPageFormat(1000000, 44000);
 
         osmd.setOptions({
           renderSingleHorizontalStaffline: true,
@@ -89,6 +89,7 @@ function MidiViewer({ midiFiles }: MidiViewerProps) {
         width: "100%",
         height: "100%",
         overflowY: "auto",
+        overflowX: "auto",
         backgroundColor: "#fff",
       }}
     />
