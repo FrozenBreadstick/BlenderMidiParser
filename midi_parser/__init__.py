@@ -13,18 +13,28 @@ bl_info = {
 
 import shutil
 from pathlib import Path
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+from functools import partial
+import threading
 import bpy
 from bpy_extras.io_utils import ImportHelper
 from bpy.props import StringProperty
 from bpy.types import Operator
 from bpy.types import Panel
 
-from midi_parser.external import webbrowser
+_server_instance = None
 
-class BMP_OT_operator(Operator):
+def stop_server():
+    global _server_instance
+    if _server_instance:
+        _server_instance.shutdown()
+        _server_instance.server_close()
+        _server_instance = None
+
+class BMP_OT_start(Operator):
     """ tooltip goes here """
-    bl_idname = "bmp.operator"
-    bl_label = "Opens a webpage"
+    bl_idname = "bmp.start_server"
+    bl_label = "Start/Opens the server"
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -32,12 +42,36 @@ class BMP_OT_operator(Operator):
         return context.mode == "OBJECT"
 
     def execute(self, context):
+        global _server_instance
 
-        self.report({'INFO'},
-            f"execute()")
-        
-        webbrowser.open_new('https://www.wikipedia.org/')
+        dist_dir = Path(__file__).parent / "blender_dist"
+        PORT = 8765
 
+        if _server_instance is None: #Make sure server is not already running before trying to start
+            try:
+                handler = partial(SimpleHTTPRequestHandler, directory=str(dist_dir))
+                _server_instance = ThreadingHTTPServer(("127.0.0.1", PORT), handler)
+
+                thread = threading.Thread(target=_server_instance.serve_forever, daemon=True)
+                thread.start()
+                self.report({'INFO'}, "Server Started")
+            except Exception as e:
+                self.report({'ERROR'}, f"Could not start server: {e}")
+                return {'CANCELLED'}
+        else:
+            self.report({'INFO'}, "Server already running, opening browser...")
+
+        bpy.ops.wm.url_open(url=f"http://127.0.0.1:{PORT}")
+ 
+        return {'FINISHED'}
+    
+class BMP_OT_stop(Operator):
+    bl_idname = "bmp.stop_server"
+    bl_label = "Stop Server"
+
+    def execute(self, context):
+        stop_server()
+        self.report({'INFO'}, "Server Stopped")
         return {'FINISHED'}
 
 class BMP_OT_import_file(Operator, ImportHelper):
@@ -63,10 +97,9 @@ class BMP_OT_import_file(Operator, ImportHelper):
 
         src = Path(self.filepath)
         
-        documents_dir = Path.home() / "Documents" #Temporarily using the documents folder
-        cache_dir = documents_dir / "BMP_cache"
+        cache_dir = Path(__file__).parent / "blender_dist" / ".cache"
 
-        if cache_dir.exists():
+        if cache_dir.exists() and cache_dir.name == ".cache" and cache_dir.is_dir():
             shutil.rmtree(cache_dir)
 
         cache_dir.mkdir(parents=True, exist_ok=True)
@@ -80,20 +113,37 @@ class BMP_OT_import_file(Operator, ImportHelper):
         return {'FINISHED'}
 
 class BMP_PT_sidebar(Panel):
-    """Display test button"""
     bl_label = "BMP"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_category = "BMP"
 
     def draw(self, context):
-        col = self.layout.column(align=True)
-        prop = col.operator(BMP_OT_operator.bl_idname, text="Open Wikipedia")
-        filepicker = col.operator(BMP_OT_import_file.bl_idname, text='Import Midi')
+        layout = self.layout
+        global _server_instance
+
+        box = layout.box()
+
+        if _server_instance:
+            box.label(text="Server: RUNNING", icon='URL')
+        else:
+            box.label(text="Server: OFFLINE", icon='WORLD')
+
+        start_text = "Open Browser" if _server_instance else "Start Server"
+        start_icon = 'URL' if _server_instance else 'PLAY'
+        box.operator(BMP_OT_start.bl_idname, text=start_text, icon=start_icon)
+
+        row = box.row()
+        row.enabled = _server_instance is not None
+        row.operator(BMP_OT_stop.bl_idname, text="Stop Server", icon='CANCEL')
+
+        layout.separator()
+        layout.operator(BMP_OT_import_file.bl_idname, text='Select Midi', icon='FILE_NEW')
     
     
 classes = [
-    BMP_OT_operator,
+    BMP_OT_start,
+    BMP_OT_stop,
     BMP_PT_sidebar,
     BMP_OT_import_file
 ]
@@ -105,6 +155,7 @@ def register():
 
 
 def unregister():
+    stop_server()
     for c in classes:
         bpy.utils.unregister_class(c)
 
