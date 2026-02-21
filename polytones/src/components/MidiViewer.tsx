@@ -9,11 +9,25 @@ function MidiViewer({ midiFiles }: MidiViewerProps) {
   const isProcessing = useRef(false);
 
   useEffect(() => {
-    const convertAndRender = async () => {
-      if (isProcessing.current) return;
+    let isMounted = true;
 
+    const renderScore = async () => {
       const midiData = Object.values(midiFiles)[0];
-      if (!midiData || !containerRef.current) return;
+
+      if (
+        !midiData ||
+        midiData.length < 4 ||
+        !containerRef.current ||
+        isProcessing.current
+      )
+        return;
+
+      const isMidi =
+        midiData[0] === 0x4d &&
+        midiData[1] === 0x54 &&
+        midiData[2] === 0x68 &&
+        midiData[3] === 0x64;
+      if (!isMidi) return;
 
       isProcessing.current = true;
 
@@ -23,63 +37,55 @@ function MidiViewer({ midiFiles }: MidiViewerProps) {
             autoResize: false,
             backend: "svg",
             drawPartNames: false,
-            renderSingleHorizontalStaffline: true,
           });
         }
         const osmd = osmdRef.current;
 
         await WebMscore.ready;
+        if (!isMounted) return;
 
-        const score = await WebMscore.load("midi", new Uint8Array(midiData));
+        const score = await WebMscore.load("midi", midiData);
         const musicXml = await score.saveXml();
 
-        await osmd.load(musicXml);
+        score.destroy();
 
-        osmd.setCustomPageFormat(1000000, 44000);
+        if (!isMounted) return;
 
         osmd.setOptions({
-          renderSingleHorizontalStaffline: true,
-          drawTitle: false,
+          pageFormat: "Endless",
           drawingParameters: "compact",
+          drawTitle: false,
         });
 
+        await osmd.load(musicXml);
         osmd.render();
 
-        if (containerRef.current) {
-          const svgElement = containerRef.current.querySelector("svg");
+        const svgElement = containerRef.current.querySelector("svg");
+        if (svgElement && isMounted) {
+          const content = new XMLSerializer().serializeToString(svgElement);
+          const finalSvg = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n${content}`;
 
-          if (!svgElement) {
-            throw new Error("SVG element not found in OSMD container.");
-          }
-
-          // 2. Serialize only the SVG and its children
-          const svgContent = new XMLSerializer().serializeToString(svgElement);
-
-          // 3. Add the XML declaration so Blender recognizes it
-          const xmlHeader =
-            '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n';
-          const finalContent = xmlHeader + svgContent;
-
-          // 4. Send the clean SVG string
           await fetch("/api/save-svg", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              fileName: "converted_midi.svg",
-              content: finalContent,
+              fileName: "latest_score.svg",
+              content: finalSvg,
             }),
           });
         }
-
-        score.destroy();
       } catch (err) {
-        console.error("Worker or OSMD Error:", err);
+        console.error("MidiViewer Error:", err);
       } finally {
         isProcessing.current = false;
       }
     };
 
-    convertAndRender();
+    renderScore();
+
+    return () => {
+      isMounted = false;
+    };
   }, [midiFiles]);
 
   return (
@@ -87,10 +93,9 @@ function MidiViewer({ midiFiles }: MidiViewerProps) {
       ref={containerRef}
       style={{
         width: "100%",
-        height: "100%",
-        overflowY: "auto",
-        overflowX: "auto",
-        backgroundColor: "#fff",
+        height: "100vh",
+        overflow: "auto",
+        background: "#fff",
       }}
     />
   );

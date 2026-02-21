@@ -6,5 +6,7 @@
   ],
   "compilerOptions": {
     "types": ["vite-plugin-arraybuffer/types"],
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
   },
 }
